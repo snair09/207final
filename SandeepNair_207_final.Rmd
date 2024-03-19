@@ -1,0 +1,1128 @@
+---
+title: "Statistical Analysis on the effect of Class sizes on Student Performance"
+author: "Sandeep Nair"
+date: "March 18th, 2024"
+output:
+  html_document:
+    df_print: paged
+    number_sections: yes
+---
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.pos = 'H')
+```
+
+```{r setup, include=FALSE}
+options(warn = -1)
+```
+
+```{r, echo = F, message = F}
+library(AER)
+library(tidyverse)
+library(ggplot2)
+library(cowplot)
+library(haven)
+library(dplyr)
+library(ggplot2)
+library(cowplot)
+library(ggpubr)
+```
+
+
+# Abstract
+
+In this report, we delve into the influence of class sizes on the math scaled scores of first-grade students through statistical analysis. We first analyze the dataset and experimental design. In the Descriptive analysis section we use visualizations to assess the impact of various student characteristics on their math scaled scores. In subsequent sections we find the best model to describe the relationship between class size and math scores. Finally, the validity of the assumptions of our chosen model are examined.
+
+# Introduction
+
+The Project STAR (Student/Teacher Achievement Ratio) study is a renowned randomized experiment conducted in the late 1980s to assess the impact of class sizes on academic performance. As apart of this study, participating schools randomly divided students from kindergarten to third grade into 'Small classes' (about 15-17 students), 'Regular' classes (22-25 students) and 'Regular with full-time Aide' classes (22-25 students with a full time teacher's aide). Student performance were measured by norm-referenced and criterion-referenced standardized tests (Achilles, 2012). Due to large scope and importance of this project many researchers have conducted subsequent analysis to re-examine the experimental design and conclusion of the study.
+
+**Questions of Interest:**
+
+Primary Question: Investigate whether there exist differences in math scaled scores among 1st-grade students across different class types.
+
+
+Secondary Question: Determine which class type is associated with the highest math scaled scores in 1st grade
+
+Results of this study will be compared to conclusion of the original study which found that students in smaller classes had improved test outcome. As a results, the results of this student may potentially impact the numerous educational policies which has been inspired by project STAR's conclusion like the California statewide class-size reduction policy (Schanzenbach 2006) 
+
+
+# Background 
+
+## Description of Dataset
+
+The dataset from this experiment has been widely used in academic research and is available on the Harvard Dataverse. The target population for this study the population of students from kindergarten to the third grade. 11,598 students from this target population were sampled. For each student, various different types of data was collected and formatted as follows:
+
+* Gender: factor with two levels- "male" and "female"
+* Ethnicity: factor indicating student's ethnicity with levels "cauc" (Caucasian), "afam" (African-American), "asian" (Asian), "hispanic" (Hispanic), "amindian" (American-Indian) or "other".
+* birth: student's birth quarter 
+* STAR class type: factor indicating class types in different grades: regular, small or regular-with aide
+* Scaled Reading scores
+* Scaled Math Scores
+* Lunch : Factor indicating if the student qualified for free lunch in every grade
+* School type: factor indicating type of school attended. Has four levels - "inner-city", "suburban", "rural" or "urban"
+* degree of teacher: factor indicating highest degree of teachers: "bachelor", "master", "specialist", or "phd"
+* ladder  :factor indicating teacher's career ladder level. Contains 6 levels - "level1", "level2", "level3", "apprentice", "probation" or "pending".
+* Years of teacher's total teaching experience.
+* Ethnicity of teacher: Contains two factor levels- "cauc" (Caucasian) or "afam" (African-American).
+
+
+## Experimental Design
+
+```{r ,include = FALSE}
+raw= read_sav("STAR_Students.sav")
+```
+
+The STAR experiment was a large-scale, randomized longitudinal experiment. The conditions of the STAR experiment were kept uniform thorough four years for each student. Design decision and the rationale behind them were detailed by Achilles et. al (2012):
+
+1. All Tennessee schools with K-3 classes
+were invited to participate to nullify the possibility that conclusions were due to selection bias.
+
+2.  Each participating school had to accommodate atleast one class of each class type so as to ensure that difference among schools could not be attribute to class size.
+
+3. Large Sample size (7,000 students per grade)
+
+4. Diverse types of schools (inner-city, urban, rural, suburban) were represented in the sample
+
+5. Students were randomly assigned to their class type.
+
+6. Confidentiality of subjects was maintained
+
+7. No children received fewer services due to the
+experiment
+
+8. Student performance was tracked by standardized tests
+
+9. Statistical analysis were performed by an outside consultants
+
+
+# Critism of Design Choieces
+
+```{r ,include = FALSE}
+raw= read_sav("STAR_Students.sav")
+```
+
+```{r , include =FALSE}
+rawf <- raw %>%select(FLAGSG1,stdntid,gender,race, birthmonth, birthday, birthyear,starts_with("g1"))
+
+rawf <- rawf %>%filter(FLAGSG1 != 0)
+
+rawf <- rawf %>%mutate(gender = ifelse(gender == 1, "male", "female"))
+# race
+rawf <- rawf %>%
+  mutate(race = case_when(
+    race == 1 ~ "White",
+    race == 2 ~ "Black",
+    race == 3 ~ "Asian",
+    race == 4 ~ "Hispanic",
+    race == 5 ~ "NativeAm",
+    race == 6 ~ "Other"))
+
+rawf$gender = as.factor(rawf$gender)
+rawf$race = as.factor(rawf$race)
+# class type
+rawf <- rawf %>%
+  mutate(g1classtype = case_when(
+    g1classtype == 1 ~ "Small",
+    g1classtype == 2 ~ "Regular",
+    g1classtype == 3 ~ "Regular+ aide"))
+
+rawf$g1classtype = as.factor((rawf$g1classtype))
+# school type
+
+rawf <- rawf %>%
+  mutate(g1surban = case_when(
+    g1surban == 1 ~ "Inner City",
+    g1surban == 2 ~ "Suburban",
+    g1surban == 3 ~ "Rural",
+    g1surban == 4 ~ "Urban"))
+
+rawf$g1surban = as.factor((rawf$g1surban))
+#
+rawf <- rawf %>%mutate(g1tgen = ifelse(g1tgen == 1, "male", "female"))
+rawf$g1tgen = as.factor((rawf$g1tgen))
+#
+rawf <- rawf %>%
+  mutate(g1trace = case_when(
+    g1trace == 1 ~ "White",
+    g1trace == 2 ~ "Black",
+    g1trace == 3 ~ "Asian",
+    g1trace == 4 ~ "Hispanic",
+    g1trace == 5 ~ "NativeAm",
+    g1trace == 6 ~ "Other"))
+
+rawf$g1trace = as.factor((rawf$g1trace))
+#g1thighdegree
+
+rawf <- rawf %>%
+  mutate(g1thighdegree = case_when(
+    g1thighdegree == 1 ~ "Associates",
+    g1thighdegree == 2 ~ "Bachelors",
+    g1thighdegree == 3 ~ "Masters",
+    g1thighdegree == 4 ~ "Masters +",
+    g1thighdegree == 5 ~ "Specialist",
+    g1thighdegree == 6 ~ "Other"))
+
+rawf$g1thighdegree = as.factor((rawf$g1thighdegree))
+rawf <- rawf %>%
+  mutate(g1tcareer = case_when(
+    g1tcareer == 1 ~ "Not Appear",
+    g1tcareer== 2 ~ "Apprentice",
+    g1tcareer == 3 ~ "Probation",
+    g1tcareer == 4 ~ "Ladder level 1",
+    g1tcareer == 5 ~ "Ladder level 2",
+    g1tcareer == 6 ~ "Ladder level 3",
+    g1tcareer == 7 ~ "Pending"))
+
+rawf$g1tcareer = as.factor((rawf$g1tcareer))
+
+rawf <- rawf %>%mutate(g1freelunch = ifelse(g1freelunch == 1, "Free", "Non-Free"))
+rawf$g1freelunch = as.factor((rawf$g1freelunch))
+rawf <- rawf %>%mutate(g1promote = ifelse(g1promote == 1, "Recommended", "Not Recommended"))
+rawf$g1promote = as.factor((rawf$g1promote))
+
+```
+
+
+
+## Confunding effect due to each teacher's Instructional quality
+
+The within-school design controlled for difference among schools like resources, facilities available and zip-code. Due to this design choice, class effects could not be attributed to any school-dependent external factors. However, the study fails to consider the confounding effect of the quality of the teacher itself. Since the assignment of teachers to classes was randomized, any disparities in student outcomes between class types may inadvertently reflect differences in the instructional effectiveness of teachers rather than the impact of class size alone. This confounding effect complicates the interpretation of results, as it becomes challenging to disentangle the distinct influences of class size and teacher quality on student performance. 
+
+
+## Ethical considerations
+
+The authors claims that the stipulations of the study do not result in some students receiving fewer services. However, intuitively, most parents know that smaller class sizes are more beneficial for students even before the study arrived at this conclusion. As a result, it could be argued that the funding for this study was unevenly distributed in favor students with the students lucky enough to be assigned to smaller classes. They received the benefit of more individual attention. 
+
+## Non-conformity to study design
+
+In the ideal implementation of the design, students were expected to remain in the same class type for all years (kindergarten to 3rd grade). However, a previous  studty on the STAR dataset by Diane Schanzenbach has revealed several deviations from this ideal implementations
+
+* 10 percent of students moved from one class type to another in a non-random manner.
+* Students in inner city schools were over-represent because only schools large enough to have one of each class type was chosen.
+
+Additionally, a study Finn et.al shows that at the end of kindergarten one half of students in the regular and regular+aide classes were randomly shuffled. 
+
+
+## Missing Values 
+* Of the 11601 students in the dataset from the Harvard dataverse, 6829 students participated in the study while they were in grade 1. After filtering for students participating in the STAR project in the first grade, the math scaled scores for 231 children are missing. We remove them from our dataset. We don't expect this to have an impact on your final results because our sample size (6829 for first grade) is quite large. 
+
+To investigate if there are any sampling biases which lead to the missing math scaled scores, we will use mosaic plots representing the proportions of factor levels for key variables. Among all the variables in the data, the ones with the highest difference in factor level proportions are plotted below.
+
+```{r , include=FALSE}
+na_math = rawf[is.na(rawf[,"g1tmathss"]),]
+yes_math = rawf[!is.na(rawf[,"g1tmathss"]),]
+
+```
+
+```{r, include =FALSE}
+chi_sq_test_v2 = function(cat){
+  yes_math = yes_math[!is.na(yes_math[,cat]) , ]
+  na_math = na_math[!is.na(na_math[,cat]), ]
+  pop_prop =   table(yes_math[[cat]])/nrow(yes_math)
+  na_prop = table(na_math[[cat]])/nrow(na_math)
+  chi_sq = chisq.test(table(na_math[[cat]]), p = pop_prop)
+  return (round(chi_sq$p.value,5))
+}
+
+pop_prop_fetch = function(cat){
+  yes_math = yes_math[!is.na(yes_math[,cat]) , ]
+  na_math = na_math[!is.na(na_math[,cat]), ]
+  pop_prop =   table(yes_math[[cat]])/nrow(yes_math)
+  return(pop_prop)
+}
+
+na_prop_fetch = function(cat){
+  yes_math = yes_math[!is.na(yes_math[,cat]) , ]
+  na_math = na_math[!is.na(na_math[,cat]), ]
+  pop_prop =   table(yes_math[[cat]])/nrow(yes_math)
+  na_prop = table(na_math[[cat]])/nrow(na_math)
+  return(na_prop)
+}
+```
+
+
+```{r ,warning=FALSE, include = FALSE}
+catvars <- c("gender", "race", "g1classtype", "g1surban", "g1tgen", "g1trace", "g1thighdegree", "g1tcareer", "g1freelunch", "g1promote")
+catvarsnames = c("Gender", "Race", "Class type","Location", "Teacher's gender", "Teacher's Race", "Teacher's Highest Degree","Teacher's Career Level", "Free lunch", "Promotion")
+results <- lapply(catvars, chi_sq_test_v2)
+result_df <- data.frame(Variable = catvarsnames, P_Value = unlist(results))
+print(result_df)
+```
+```{r, include =FALSE}
+pop_prop = pop_prop_fetch("gender")
+na_prop = na_prop_fetch("gender")
+```
+
+```{r, include =FALSE}
+get_mosaic = function(cat, label) {
+  pop_prop = pop_prop_fetch(cat)
+  na_prop = na_prop_fetch(cat)
+
+  pop_df = data.frame(
+    Category = names(pop_prop),
+    Proportion = pop_prop,
+    Dataset = "Scores Present"
+  )
+  
+  # Create data frame for NA
+  na_df = data.frame(
+    Category = names(na_prop),
+    Proportion = na_prop,
+    Dataset = "Scores Missing"
+  )
+  
+  prop_df = rbind(pop_df, na_df)
+  
+  title = paste(label)
+  p = ggplot(prop_df, aes(x = Dataset, y = Proportion.Freq, fill = Category)) +
+    geom_bar(stat = "identity", position = "stack", width = 0.98)+ 
+    labs(title = title, x = "Group", y = "Proportion") +
+    scale_fill_brewer(name = NULL, palette = "Dark2") +
+    scale_y_continuous(limits = c(0, 1), expand = c(0, 0),breaks = seq(0,1,by=0.2)) +
+    scale_x_discrete(expand = c(0, 0)) 
+  
+  return(p)
+}
+
+p1 = get_mosaic("g1classtype", "Class Type")
+p2 = get_mosaic("race", "Student's Race")
+p3 = get_mosaic("g1freelunch", "Free Lunch")
+p4 = get_mosaic("g1promote", "Promotion")
+```
+
+```{r, fig.width=12, fig.height=3, echo=FALSE}
+plot_grid(p1,p2,p3, labels =c("1","2","3"), nrow=1)
+```
+
+From plot 1 we see that students in regular+aide classes are slightly over represented among those with missing math scaled scores while students in regular and small classes are slightly under represented. However,given the small number of students with missing values (231 Scores missing vs 6829 Scores present), this slight difference in proportion is probably due to randomness rather than sampling bias.
+
+Similarly plot 2 shows a over representation of black students and slight under representation of white students among those with missing values. Again, this difference in proportion can be attributed to randomness.
+
+However, the students who are enrolled in the free lunch program (plot 3) are significantly over represented among those with missing values. This difference is proportions is probably due to sampling bias. Students qualify for the free lunch program on the basis of their parent's income. Plot 3 shows that students from less affluent families are more likely to have missing math scaled scores compared to students who come from more affluent families.
+
+The difference in factor level proportions of student's race and free lunch will be further investigated in the descriptive analysis section. 
+
+## Heterogeneity
+
+Since our primary question of interest is the effect of class size alone, we need to make sure effect of class size is not due to any confounding patterns. The random assignments of teachers and students are theoretically supposed to balance out other factors. We anticipate that the proportions of factor levels should be uniformly distributed across different class sizes. However, the assumption of uniform proportions does not hold true for certain variables within our dataset, as illustrated by the mosaic plots below.
+
+
+
+```{r, include= FALSE}
+chi_class = function(cat1, cat2){
+  contingency_table = table(rawf[[cat1]],rawf[[cat2]])
+  prop_table = prop.table(contingency_table, margin = 1)
+  #fisher_result = fisher.test(contingency_table, simulate.p.value = TRUE)
+  #chisq_result = chisq.test(contingency_table)
+  
+  return(prop_table)
+}
+
+```
+
+
+```{r fig.width=16.5, fig.height=4 , echo=FALSE}
+mosaic_class = function(cat, label){
+  prop_df = as.data.frame(chi_class('g1classtype',cat))
+  colnames(prop_df) <- c("Category1", "Category2", "Proportion.Freq")
+  p <- ggplot(prop_df, aes(x = Category1, y = Proportion.Freq, fill = Category2)) +
+      geom_bar(stat = "identity", position = "stack", width = 0.98)+
+      labs(title = label, x = "Class type", y = "Proportion") +
+      scale_fill_brewer(name = NULL, palette = "Dark2") +
+      scale_y_continuous(limits = c(0, 1), expand = c(0, 0), breaks = seq(0,1,by=0.1)) +
+      scale_x_discrete(expand = c(0, 0)) 
+  return(p)
+}
+
+#plots = lapply(catvars,mosaic_class)
+#p1 = plots[2]
+#p2= plots[4]
+p1 = mosaic_class("race", "Student's Race")
+p2 = mosaic_class("g1thighdegree", "Teacher's Highest Degree")
+p3 = mosaic_class("g1surban", "Urbancity")
+p4= mosaic_class("g1promote", "Promotion")
+
+plot_grid(p1,p2,p3,p4, labels =c("4","5","6", "7"), nrow=1)
+```
+
+* The proportion of black students in regular classes is higher than in small and regular+aide classes. In contrast, white students are present in lower proportions in regular classes (plot 4).  
+
+* Regular+aide and small classes have higher proportions of teachers with advanced degrees (M.S or higher) compared to regular classes (plot 5)
+
+* Plot 6 shows that Inner city schools have higher proportions of student in regular classes compared to other Rural, sub-urban and urban schools. 
+
+* Plot 7 shows the proportion of students who have been recommended for promotion into grade 2. We see that students in small classes  have the highest proportions of student who are recommended for promotion. However, this may be due to the increased effectiveness of smaller class sizes rather than a confounding effect. The relationship between probability of promotion, scaled math scores and class sizes is analyzed further in a separate section. 
+
+
+
+# Descriptive analysis 
+
+In this section, the effect of factors with with uneven proportions across class sizes and missing values (namely student's race and free lunch) will be represented visually. We can use this visualizations to determine if such factors should be accounted for in our model.
+
+Additionally, the effect dependent variable,c lass size, and the stratification variable, schoolid, will also be visualized
+
+## Effect of Student's race and Free lunch program on math scaled scores
+
+
+```{r, include = FALSE}
+plot_pie = function(data, cat ,label) {
+  
+  counts = table(as.factor(data[[cat]]))
+  counts_df = as.data.frame(counts)
+  
+  threshold <- 0.2 * sum(counts_df[['Freq']])
+  
+  p = ggplot(counts_df, aes(x = "", y = Freq, fill = Var1)) +
+    geom_bar(stat = "identity", width = 1) +
+#    geom_text(aes(label = Freq), 
+#              position = position_stack(vjust = 0.5), size = 3) + # Add count labels
+    coord_polar("y", start = 0) +
+    theme_void() +
+    labs(fill = "") +
+    ggtitle(label)+
+    scale_fill_brewer(name = NULL, palette = "Dark2")
+  return(p)}
+```
+
+
+```{r , echo =FALSE , fig.width=8, fig.align='center'}
+p1= (plot_pie(rawf, "race", "Student's Race"))
+
+
+p2 =ggplot(rawf[!is.na(rawf$race),], aes(x = race, y = g1tmathss, fill=race))+
+  geom_boxplot(outlier.shape = NA)+
+  scale_fill_brewer(name = NULL, palette = "Dark2")+
+  theme(axis.text.x = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(),
+        axis.line = element_line(color = "black"))+
+  labs(y = "Scaled Math Score",
+       title = "Boxplot Comparing Math Scores by Student's Degree")#
+
+p3 =plot_pie(rawf, "g1freelunch", "Free lunch Program")
+
+p4 =ggplot(rawf[!is.na(rawf$g1freelunch),], aes(x = g1freelunch, y = g1tmathss, fill=g1freelunch))+ #3
+  geom_boxplot(outlier.shape = NA)+
+  scale_fill_brewer(name = NULL, palette = "Dark2")+
+  theme(axis.text.x = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(),
+        axis.line = element_line(color = "black"))+
+  labs(y = "Scaled Math Score",
+       title = "Boxplot Comparing Math Scores by Free lunch Programme")#
+
+
+
+plot_grid(p1,p2,p3,p4, labels = c("8","9","10","11"), nrow =2,rel_widths = c(1,2.5))
+```
+
+From plot 8 we see that majority of the students are white (66%) and black (32%). Asians, Native Americans and Hispanic student are present in single digit numbers. 
+
+Plot 9 shows that there may be an affect of Student's race on scaled math scores.Black student's, on average, score lower than white students. 
+
+Plot 10 and 11 show that student's who are not enrolled in the free lunch program (non-free) have higher math scaled scores than those students who are enrolled. The student's who are eligible for the free lunch program come from poorer families. Therefore, the free lunch program can serve as an indicator of the socioeconomic status of students' parents.
+ 
+ 
+These finding along with the conclusions from sections 4.3 (missing values) 4.4 (heterogeneity) show that student's race and free lunch eligibility have an effect on math scaled scores, and aren't present in equal proportions across class types. This means that the assumption that the effect of external factors (barring class type and school id) are nullified  by the stratified school level design might not be true. While modelling, we need to check for the statistical significance of 
+
+
+## Choosing Response Variable for modelling:
+
+Firstly, we find the mean and median math scaled score for each teacher. We need to choose either the mean of the median to be outcome variable. We group by teacher because we want to nullify the effect of each student's intelligence of scaled math scores. To choose between the teacher mean and median math scaled scores, we analyze their distributions
+
+
+```{r, include = FALSE, message=FALSE}
+main_stats <- rawf %>%
+  group_by(g1tchid,g1schid,g1classtype) %>%
+  summarise(mean_g1tmathss = mean(g1tmathss, na.rm = TRUE),
+            median_g1tmathss = median(g1tmathss, na.rm = TRUE),
+            prop_free_lunch = mean(g1freelunch=="Free"))
+main_stats$g1tchid = as.factor(main_stats$g1tchid)
+main_stats$g1schid = as.factor(main_stats$g1schid)
+```
+
+```{r, fig.height=3,echo=FALSE, fig.align='center'}
+p1 = ggplot(main_stats, aes(x = mean_g1tmathss)) +
+  geom_histogram(binwidth = 5, fill = "#1b9e77",color = "black") +
+  labs(title = "Teacher Mean Scores", x = "Coefficients", y = "Frequency")+
+  scale_fill_brewer(name = NULL, palette = "Dark2")+
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(),
+        axis.line = element_line(color = "black"))+
+  scale_y_continuous(limits = c(0, 35), expand = c(0, 0) ) +
+  scale_x_continuous(expand = c(0, 0),breaks = seq(0, max(main_stats$mean_g1tmathss), by = 20))
+
+p2 = ggplot(main_stats, aes(x = median_g1tmathss)) +
+  geom_histogram(binwidth = 5, fill = "#d95f02",color = "black") +
+  labs(title = "Teacher Median Scores", x = "Coefficients", y = "Frequency")+
+  scale_fill_brewer(name = NULL, palette = "Dark2")+
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(),
+        axis.line = element_line(color = "black"))+
+  scale_y_continuous(limits = c(0, 35), expand = c(0, 0) ) +
+  scale_x_continuous(expand = c(0, 0),breaks = seq(0, max(main_stats$median_g1tmathss), by = 20))
+
+plot_grid(p1,p2, labels =c("12","13"), ncol=2)
+```
+
+From the above plots (11 and 12) it is clear that the teacher mean scores roughly conforms to the normal distribution. On the other hand, the teachers median scores seems to have multiple peaks and non-normal. Since one of the key assumptions of anova models is the normality of outcome variable, we select choose teacher mean math scaled scores as our response variable in all our models. 
+
+
+## Checking Effects of dependent variables - Class type and School
+
+
+```{r, echo=FALSE , message=FALSE, fig.align='center'}
+library(gridExtra)
+p1= (plot_pie(main_stats, "g1classtype", "School location"))
+
+
+p2 =ggplot(main_stats, aes(x = g1classtype, y = mean_g1tmathss, fill=g1classtype))+
+  geom_boxplot(outlier.shape = NA)+
+  scale_fill_brewer(name = NULL, palette = "Dark2")+
+  #stat_compare_means(method = "anova", label.x = 1.5, size = 3)+
+  theme(axis.text.x = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(),
+        axis.line = element_line(color = "black"))+
+  labs(y = "Teacher Mean Scaled Math Score",
+       title = " Math Scores by Class types")
+
+median_iqr <- main_stats %>%
+  group_by(g1schid) %>%
+  summarise(
+    median_mathss = median(mean_g1tmathss),
+    lower_quantile = quantile(mean_g1tmathss, 0.25),
+    upper_quantile = quantile(mean_g1tmathss, 0.75)
+  ) %>%
+  arrange(median_mathss) 
+
+p3 = ggplot(median_iqr, aes(x = reorder(factor(g1schid), median_mathss), y = median_mathss)) +
+  geom_point(color = "#e6ab02") +
+  geom_errorbar(aes(ymin = lower_quantile, ymax = upper_quantile),color = "#f0cc67", width = 0.2) +
+  labs(title = "Teacher Mean Scores by School",
+       x = "School",
+       y = "Scaled Math Score") +
+    theme(axis.text.x = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(),
+        axis.line = element_line(color = "black"))
+
+plot_grid(
+  plot_grid(p1, p2, labels =c("14","15"), ncol = 2, rel_widths = c(1, 2.5)),
+  p3, labels = c("","16"),
+  nrow = 2,
+  rel_heights = c(1,0.75)
+)
+```
+
+
+
+From the pie chart (plot 14) can see that the three class types - Regular, Regular+aide and Small are present in similar proportions. However, the number of observations for across class types are not equal. From the boxplot (plot 15) we can say that there is strong possibility that class type has an effect on scaled math scores. Small class sizes seem to have the highest teacher mean math scaled scores. Regular+aide classes has the second highest teacher mean math scaled scores. However,the difference between math scores of regular and regular+aide classes seem to be less pronounced.
+
+Plot 15 shows that there is significant variation of teacher mean scores across different school. As a result, we need to make sure to include schoolid in models.
+
+
+# Inferential analysis
+
+```{r, include=FALSE}
+library(car)
+# basic interactive
+aov.int = aov(mean_g1tmathss~g1schid +g1classtype +g1classtype:g1schid  , data = main_stats)
+
+#basic additive
+aov.add= aov(mean_g1tmathss~g1schid+g1classtype, data = main_stats)
+
+#type 2
+lm.t2 = lm(mean_g1tmathss~g1schid+g1classtype, data =main_stats)
+a.lm.t2 = Anova(lm.t2,type=2)
+
+#type 3 (but additive)
+lm.t3 = lm(mean_g1tmathss~g1schid+g1classtype, data=main_stats, contrasts=list(g1schid=contr.sum, g1classtype=contr.sum), type=3)
+a.lm.t3 = Anova(lm.t3)
+
+aov.free.add = aov(mean_g1tmathss~g1classtype+prop_free_lunch, data = main_stats)
+summary(aov.free.add)
+```
+
+## Model Description
+
+
+## Model Selection 
+
+To choose between the interactive and additive model we conduct a hypothesis test to check for the significance of the interactive terms. For this test $H_0: (\alpha \beta)_{ij} =0$ and $H_a: (\alpha \beta)_{ij} \neq 0$
+
+* Full model: $Y_{ijk} =\mu_{\cdot\cdot} + \alpha_i+\beta_j + (\alpha\beta)_{ij}+\epsilon_{ijk}$
+
+* Reduced model : $Y_{ijk} =\mu_{\cdot\cdot} + \alpha_i+\beta_j +\epsilon_{ijk}$
+
+Where 
+
+* $Y_{ijk}$ represent the response variable which in mean math scaled scores in our model  
+* $\mu_{..}$ represent the overall mean of observation data
+* $\alpha_i$ and $\beta_j$ represent the main effect of class size and school id on math scores respectively
+* $\alpha_i\beta_j$ refers to the interaction effect. It represents whether one factor has an effect on the level of the other factor 
+* $\epsilon_{ijk}$ refers to the error term or random variability. They are assumed to be independently and identically distributed with mean 0 and variance $\sigma^2$
+
+
+The f-statistic for this test is:
+
+$$F^*=\frac{ [{\rm SSE}_{\rm red}-{\rm SSE}_{\rm full}  ] / [ df_{\rm red}-df_{\rm full}   ]  }{ {\rm SSE}_{\rm full}/df_{\rm full}}$$
+
+where $F^* \sim F( (a-1)(b-1), n_T-ab)$ under the null hypothesis. 
+
+```{r, echo=FALSE}
+anova(aov.add, aov.int)
+```
+
+Based on the rejection criteria and output above, we fail to reject the null hypothesis at ($\alpha=0.05$) and conclude that the effect of interaction is negligible. We omit the interaction term in subsequent models.
+
+## Hypothesis test for effect of Class type
+
+Since we have now established that the interaction effect between class type and school id is not significant, we select a type II Anova model for further analysis. The equation of the model is 
+
+$Y_{ijk} =\mu_{\cdot\cdot} + \alpha_i+\beta_j +\epsilon_{ijk}      ;k = 1,..,n_{ij} ; j = 1,..,b ; i= 1,.., a$
+
+Where
+
+* $Y_{ijk}$ represent the response variable which in mean math scaled scores in our model  
+* $\mu_{..}$ represent the overall mean of observation data
+* $\alpha_i$ represent the main effect of school which has 76 factor levels (a=76)
+* $\beta_i$ represent the main effect of class size which has 3 factor levels (b=3)
+* $\epsilon_{ijk}$ refers to the error term or random variability. They are assumed to be independently and identically distributed with mean 0 and variance $\sigma^2$
+
+Factor effects are defined as follows:
+
+\[\mu_{\cdot \cdot} =\sum_{i=1}^a \sum_{j=1}^ b \frac{\mu_{ij}}{ab}, \ \mu_{i\cdot} = \sum_{j=1}^b \frac{\mu_{ij}}{b}, \ \mu_{\cdot j}=\sum_{i=1}^a \frac{\mu_{ij}}{a}.\]
+
+Furthermore, 
+
+\[\alpha_i=\mu_{i\cdot} - \mu_{\cdot \cdot},\ \beta_j=\mu_{\cdot j}-\mu_{\cdot\cdot}\]
+
+Let $SSE_{A}$ denote the residual sum of squares from the model with only  the main effect term of Factor A. We Define $SSE_{B}$ and $SSE_{A,B}$ similarly.
+
+We define the sum of squares due to the main effect of Factor A as $SSE_{B}−SSE_{A,B}$, and the main effect due to Factor B as $SSE_{A}−SSE_{A,B}$. 
+
+The model is subject to the following constraints
+
+$$
+\begin{align}
+\sum_i w_i\alpha_i & = \sum_j w_i\beta_j=0\\
+\end{align}
+$$ where $w$ is the vector of weights for our imbalanced ANOVA.
+
+
+** Testing effect of class size**
+
+Now we conduct a statistical test to check if there is a difference in outcomes based on class size:
+$$
+H_0: \beta_i = 0, \forall  \ j =1,2,3 \\
+H_a: \text{At least one} \ \beta_i \neq 0
+$$
+We calculate the f-statisic as $F* = MSR_{B}/MSE$ which follows an F distribtion with degress of free dom(a-1,(n-1)ab). If $F* > F(1-\gamma; a-1, (n-1)ab)$ then we reject the null hypothesis and accept the alternate that there is a difference mean math scaled scores among different class sizes.We select significance level as 0.05.
+
+```{r, echo=FALSE}
+a.lm.t2
+```
+According the the rejection criteria and output of our model using ($\gamma=0.05$), we can reject the null and conclude that effect of class size on teacher mean math scaled score is significant.
+
+** Coefficients of School ID **
+
+From the model results, we see that the effect of school is significant. Below is the histogram of all $\alpha_{i}$ which depict the factor effect of different schools.
+
+```{r, echo=FALSE, fig.align='center', fig.height=3}
+school_coefs = lm.t3$coefficients[4:length(lm.t3$coefficients)-2]
+coef_df = data.frame(school_coefs)
+ggplot(coef_df, aes(x = school_coefs)) +
+  geom_histogram(binwidth = 8, fill = "#1b9e77",color = "black") +
+  labs(title = "Histogram of Schoolid Coefficients", x = "Coefficients", y = "Frequency")+
+  scale_fill_brewer(name = NULL, palette = "Dark2")+
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(),
+        axis.line = element_line(color = "black"))+
+  scale_y_continuous(limits = c(0, 15), expand = c(0, 0)) +
+  scale_x_continuous(expand = c(0, 0))
+```
+
+We see that the $\alpha_{i}$ has a roughly normal distribution ranging from -50 to 50 points with mean around 0 and variance 20.49. In comparison, the highest $\beta{small} =13.36$ and $\beta_{regular+aide} =1.97$. We see that magnitude of effect of school id is higher than class size. 
+
+## Quantifying the differnce in Math scaled scores across different class types
+
+Now that we know that there is a difference of math scores among different class sizes, we use tukey's method to construct confidence intervals for the pairwise comparisons. The Tukey's Honestly Significant Difference (HSD) method for unequal sample sizes, computes confidence intervals for pairwise differences between means. The coverage is exactly $1−\alpha$
+ for a balanced ANOVA model, and at least $1−\alpha$ for unbalanced cases.These confidence intervals are typically constructed using the formula:
+
+\[
+\bar{x}_i - \bar{x}_j \pm q_{\alpha, df, N} \sqrt{MSE \left( \frac{1}{n_i} + \frac{1}{n_j} \right)}
+\]
+
+where:
+- \(\bar{x}_i\) and \(\bar{x}_j\) are the means of the two groups being compared.
+- \(q_{\alpha, df, N}\) is the critical value from the Studentized range distribution, which depends on the desired confidence level (\(\alpha\)), the degrees of freedom within groups (\(df\)), and the total number of observations (\(N\)).
+- \(MSE\) is the mean square error from the ANOVA.
+- \(n_i\) and \(n_j\) are the sample sizes of the two groups being compared.
+
+```{r, echo=FALSE, fig.width=5, fig.align='center'}
+T.ci=TukeyHSD(aov.add,"g1classtype",conf.level = 1-0.05)
+
+# Adjust plot margins and plot
+par(mar = c(5, 6, 4, 2) + 0.1) # Adjust the margin parameters as needed
+plot(T.ci, las = 1, col = "brown", cex.axis = 0.6)
+```
+
+
+From the confidence intervals, we see that on average small class' math scores  around 13 (95% CI: [8.11, 18.75]) points higher than regular classes and 11 points higher than regular+aide (95% CI: [4.6, 15.6]) class'. So we can conclude that small class sizes have the highest math scores. There is no significant difference between regular and regular+aide classes because the interval
+
+**Potential Factors explaining conclusions**
+
+1. Enhanced Teacher-Student Interactions in Small Classes: With fewer students, teachers can provide more individualized attention and feedback to each student. As a result of enhanced teacher-student interactions, students can understand the subject matter better and hence score better on tests.
+
+2. Increased Student Engagement in Smaller Classes: Smaller class sizes foster a more collaborative and participatory environment. As a result of this environment, students may form stronger relationship with their peers and teachers.
+
+3. Ineffectiveness of Aide Support: We see that there is no significant difference in math scaled score between regular classes with and without aide. We can conclude that the support provided by aide doesn't have an impact on student performance since the tukey's pairwise comparison between these two factor levels include 0. The responsibilities of the aide and teacher are very similar. Hence, the role of an aide is made redundant and ineffective.
+
+
+
+# Sensitivity analysis 
+
+**Assumptions of the ANOVA model**
+
+* Independence of Error terms: Observations within each combination of levels of the two independent variables should be independent of each other.
+* The dependent variable should be approximately normally distributed within each combination of levels of the independent variables. This assumption is crucial for the validity of the F-test in ANOVA.
+* Homogeneity of Variances (Homoscedasticity): The variance of the dependent variable should be equal across all levels of the independent variables. 
+* Linearity: The relationship between the dependent variable and each independent variable should be linear. 
+
+
+## Visual analysis of Model Assumptions
+```{r, echo=FALSE, fig.width=8, fig.align='center'}
+par(mfrow =c(2,2))
+plot(aov.add, which =1)
+plot(aov.add, which=2)
+plot(aov.add, which=3)
+plot(aov.add, which =4)
+```
+
+* the Residual v Fitted plot shows that the residuals don't have any non-linear patterns. From this we can conclude that our linearity assumption is more likely to be true.
+* The Q-Q Residual plot shows that the residuals slightly deviate from the normal distribution. We need to do further analysis on the distribution of the analysis to check if the normality assumption holds true.
+* The Scale-Location plot shows if residuals are spread equally along the ranges of predictors. We can check the assumptions of equal variance (homoscedasticity). Since its a horizontal line we can assume that the homoscedasticity assumption is more likely true.
+* Cook's Distance graph show the influence of outliers. We see that observations 53, 143 and 144 are influential cases. I will do further analysis on these cases.
+
+## Test for normality
+
+We will use the Shapiro-Wilk procedure to test if our outcome and residuals are normally distributed: 
+
+$H_O$: $X_i's$ are normally distributed
+
+$H_a$: $X_i's$ are not normally distributed 
+
+The test statistic is $W = \frac{ \left( \sum_{i=1}^{n} a_i X_{(i)} \right)^2 }{ \sum_{i=1}^{n} (X_i - \bar{X})^2 }$
+
+Where:
+* $X_{(i)}$ is the ith order statistic. i.e. the ith-smallest number in the sample
+* $\bar{X}$ s the sample mean
+
+The vector $(a_1,...a_n) = \frac{m^T}{VC}$ where $C = (m^T V^{-1} V^{-1} m)^(1/2)$ and the vector $(m_1,...,m_n)$ is made up of the expected values of the i-th order statistics. There in no name for the distribution of W, it is calculated by Monte Carlo Simulations.
+
+
+**Testing Normality of outcome variable**
+
+Using the testing procedure detailed above we see that the p-value for the shapiro-wilk test is 0.21. Therefore, we fail to reject the null at significance level ($\alpha = 0.05$) and conclude that the outcome, mean teacher scaled math scores, are normally distributed, and our assumption is likely to be true.
+
+**Testing Normality of residuals**
+
+```{r, include =FALSE}
+shapiro.test(main_stats$mean_g1tmathss)
+shapiro.test(aov.add$residuals)
+```
+
+Using the testing procedure detailed above we see that the p-value for the shapiro-wilk test is 0.0001. Therefore, we  reject the null at significance level ($\alpha = 0.05$) and conclude that the residuals are not normally distributed.
+However, the W statistic is 0.98 which means that the distribution most follows the normal distribution. However the presence of a few extreme values elongates the tail of the distribution which deviate from the normal. 
+
+
+**Log transformation and Non-parametric models** 
+Using the box-cox transformation (appendix 1) we see that the log-transformation is appropriate for our model. However, the Shapiro-wilks test results show that the outcome log(Teacher Mean Math Scores) and the residuals are log transformed model are still non-normal. However, the conclusions from the log-transformed model are exactly the same as our main model. 
+
+The conclusions (appendix 2) from the non-parametric rank test (where we rank the outcomes use that as the response) are exactly the same as the main additive model.
+
+In conclusion we see that the assumption of normality or residuals is violated to a small degree. Additionally, Alternate models have the same conclusions as the main model. However, this slight deviation does not invalidate the results of our model.
+
+## Test for homoscedacsity
+
+We use the Levene test for testing homoscedascity (equal variance). We define $d_{ij} = | Y_{ij} - \overline{Y}_{i\cdot} |$ and treat them as the response variables in the anova model.
+
+We define the null hypothesis as $H_0 = E[d_{1.}] = E[d_{2.}] = ... E[d_{r.}]$ where r is the number of factor levels.
+According to the test we reject $H_O$ when $F^* > F(1-\alpha;r-1,n-r)$
+
+**Across Class type**
+
+Using the procedure described above and using significance level ($\alpha=0.05$), the levene's test produces the following results
+
+```{r, include=FALSE}
+main_stats$res.abs = abs(aov.add$residuals)
+x= aov(res.abs~g1classtype, data = main_stats)
+```
+
+We fail to reject the null hypothesis (p=0.066) at significance level 0.05 and conclude that the variance of mean teacher math scaled scores is equal across all class types.
+
+**Across School id**
+
+Similarly, we doing the levene's test using schoolid we observe the following values.
+
+```{r,include=FALSE}
+aov(res.abs~g1schid, data = main_stats)
+```
+
+We reject the null hypothesis (p=0.038) at significance level 0.05 and conclude that the variance of mean teacher math scaled scores is not equal across all class types. However, we need to keep in mind that there are 76 schools and the test guarantees an family wise type I error rate of 0.05. Furthermore, the p-value is very close to 0.05 (although lower). Due to this, we conclude that the equal variance assumption across school is slightly violated. However, this slight deviations from assumptions does not invalidate our model findings.
+
+## Identifying and analysing outliers
+
+For each teacher, we calculate the cooks distance, $$D_i = \frac{\sum_{j=1}^n (\hat{Y}_j - \hat{Y}_{j(i)})^2}{p \times \text{MSE}}$$
+
+In practice, $D_{i} > 4/n$ is used as ain indicator for being a potentially influential case.
+
+```{r, include=FALSE}
+names(main_stats)[3] = "Class type"
+names(main_stats)[4] = "Mean Teacher Score"
+main_stats[c(53,143,144),c("g1tchid","g1schid","Class type","Mean Teacher Score")]
+```
+
+```{r, include =FALSE}
+names(main_stats)[3] = "g1classtype"
+names(main_stats)[4] = "mean_g1tmathss"
+```
+
+We see that 
+
+* Observation 53 is influential because its mean score is very high
+
+* Observations 144, 143 (both from same school) rare case when regular class actually did better than small classes. As a result, the error term is very high which increases the cooks distance. 
+
+Fitting a model after removing these observations does not change the results (appendix 3). Therefore, Will keep these observations in the model, because these observations are not a result of error in data collection or outside the scope of the model.
+
+
+# Alternate Models 
+
+Since our type II additive model has been shown to slightly violate the assumptions we try to find an alternate model in the following section. 
+
+## Using Class size as dependent variable instead of class type
+
+We can use a simple linear regression using teacher mean score as the response and class size as the dependent variable. Using this we abandon the categorization of class sizes.
+
+```{r, include=FALSE, message=FALSE}
+main_stats_2 <- rawf %>%
+  group_by(g1tchid,g1schid,g1classtype,g1trace,g1thighdegree,g1tcareer,g1tyears,g1surban,g1tgen) %>%
+  summarise(mean_g1tmathss = mean(g1tmathss, na.rm = TRUE),
+            median_g1tmathss = median(g1tmathss, na.rm = TRUE),
+            class_size = mean(g1classsize,na.rm = TRUE))
+main_stats_2$g1tchid = as.factor(main_stats$g1tchid)
+main_stats_2$g1schid = as.factor(main_stats$g1schid)
+```
+
+
+```{r, echo=FALSE, fig.align='center', fig.width=5}
+plot(main_stats_2$class_size, main_stats_2$mean_g1tmathss, 
+     xlab = "Class Size", ylab = "Mean Score in G1TMathss", 
+     main = "Teacher Mean Score vs. Class Size")
+
+abline(lm(main_stats_2$mean_g1tmathss ~ main_stats_2$class_size), col = "red")
+```
+
+From the model we see that the teacher mean math scaled scores decrease as the class size increases. This result agrees with the conclusions of our main model. The coefficient for class size in this model is -1.514 (95%CI; [-2.00,-1.02]). This model shows that we can roughly expect a decrease of1.5 points per increase in one student in the class. 
+
+**Drawbacks of this model**
+
+* Does not take it to account the effect of school of math scores
+* Major Violation of several assumptions of simple regression, most notably the assumption of independent variance.
+* Low sample size of some class sizes.
+
+
+## Using Student Score as response instead of teacher Mean score
+
+As we have established before, the stratified design of the study fails to keep the proportions of students in the free lunch program and the race of the student itself. We couldn't include these variables in our chosen model because we grouped by teachers. However, if we consider each students scaled math score as the response variable we can analyze the effect of free lunch and student's race.
+
+
+```{r,echo=FALSE}
+rawf_complete = rawf[complete.cases(rawf$race, rawf$g1freelunch),]
+every = aov(g1tmathss~g1classtype+as.factor(g1schid)+race+g1freelunch, data = rawf_complete)
+anova(every)
+```
+
+We see that the effect of race and free lunch are very significant. This variables were ignored in our original model. Furthermore, we can analyse the pairwise comparisons under this model.
+
+
+```{r ,fig.width=5, fig.align='center'}
+T.ci.2 =TukeyHSD(every,"g1classtype",conf.level = 1-0.05)
+par(mar = c(5, 6, 4, 2) + 0.1) # Adjust the margin parameters as needed
+plot(T.ci.2, las = 1, col = "brown", cex.axis = 0.6)
+```
+
+From the plot above, we see that like the original model, that small class have the highest mean math scores.Unlike the original model, we see that there is a significant difference (confidence interval doesn't contain 0) between regular and regular+aid classes.
+
+
+
+**Advantages of this Model**
+
+* Treats student's and experimental units. Lowers MSE.
+* Include the effect of student race and free lunch program
+
+**Disadvantages of the Model**
+
+* Student math scaled scores are not normally distributed.
+* Residuals of this model strongly deviate from normal.
+* Around 200 students who had missing value in the free lunch or race column had to be removed 
+
+
+After analyzing the advantages and disadvantages, I decided to use main model because it deviates from assumptions only slightly. In contrast this alternate model stongly deviates from it's assumptions.
+
+While this model offers some evidence, I am hesitant to conclude that regular+aide classes have higher mean scores than regular classes because of the significant deviation from model assumptions.
+
+
+# Discussion 
+
+Our study shows that it is extremely challenging to design a model to fit that data that follows all the assumption of linear models. However, among all the models analyzed in the paper, the additive type II model with teacher mean as the response variable emerges as a clear winner. 
+
+We see a that students in small class on average, have higher scaled math scores than those in regular and regular+aide classes. Additionally, the presence of aide's in the class room doesn't seem to increase the math scaled scores. 
+
+Finally, there are many other aspects of students performance which we haven't analyzed in this report like reading scores, strength of interpersonal relationship and increased cost of smaller classes. 
+
+# Appendix {-}
+
+
+
+**1 - Log transformation**
+```{r, echo=FALSE}
+aov.log = aov(log(mean_g1tmathss)~g1classtype+g1schid, data = main_stats)
+aov.log
+```
+
+**2 - Rank Test**
+```{r,echo=FALSE}
+aov.rank = aov(rank(mean_g1tmathss)~g1classtype+g1schid, data = main_stats)
+aov.rank
+```
+
+
+**3 - Outlier's removed**
+```{r, echo=FALSE}
+aov.out = aov(mean_g1tmathss~g1classtype+g1schid, data = main_stats[-c(53,144,143),])
+aov.out
+```
+
+
+
+**Effect of Class size and Math score on Student promotion**
+
+At the end of the academic year, teacher either recommend or not recommend the promotion of each student into the next year. This information is provided in the harvard dataset. In previous section (heterogeneity) we see that student is smaller classes were more likely to be recommended for promotion into grade 2. In this section build logistic regression model with the response variable which indicates if a student has been recommend for promotion or not. We can then use the model to predict if given student will not be recommended for promotion. 
+
+The logisitic regression model equation is as follows: $log(p/(1-p)) = b +\beta X$ where b is an intercept term and $\beta$ is a vector of length p (number of parameters). X is the Design matrix of size nxp and contains all the explanatory variables.
+
+We split the data set into a training and testing set. After this we use step wise selection to select the important parameters. The Confusion matrix of predictions of the test test and the odd ratios ($e^(\beta_{i})$) have been plotted below 
+
+
+
+```{r, include =FALSE}
+log_reg_vars = rawf %>% dplyr::select(gender, race, g1classtype, g1surban, g1tgen, g1trace, g1thighdegree, g1tcareer,g1freelunch, g1promote, g1tmathss, g1treadss)
+
+```
+
+```{r, include =FALSE}
+kg = raw%>%filter(FLAGSGK!=0 & FLAGSG1!=0)
+log_reg_vars = raw %>% dplyr::select(gender, race, g1classtype, g1surban, g1tgen, g1trace, g1thighdegree, g1tcareer,g1freelunch, g1promote, g1tmathss , gktmathss, gktreadss)
+```
+
+```{r , include=FALSE}
+log_reg_vars <- log_reg_vars[complete.cases(log_reg_vars), ]
+undersampled_data <- log_reg_vars %>%
+  group_by(g1promote) %>%
+  sample_n(376)
+table(undersampled_data$g1promote)
+```
+
+```{r, include=FALSE}
+undersampled_data <- undersampled_data %>%mutate(gender = ifelse(gender == 1, "male", "female"))
+
+undersampled_data <- undersampled_data %>%
+  mutate(race = case_when(
+    race == 1 ~ "White",
+    race == 2 ~ "Black",
+    race == 3 ~ "Asian",
+    race == 4 ~ "Hispanic",
+    race == 5 ~ "NativeAm",
+    race == 6 ~ "Other"))
+undersampled_data$gender = as.factor(undersampled_data$gender)
+undersampled_data$race = as.factor(undersampled_data$race)
+
+undersampled_data <- undersampled_data %>%
+  mutate(g1classtype = case_when(
+    g1classtype == 1 ~ "Small",
+    g1classtype == 2 ~ "Regular",
+    g1classtype == 3 ~ "Regular+ aide"))
+undersampled_data$g1classtype = as.factor((undersampled_data$g1classtype))
+
+undersampled_data <- undersampled_data %>%
+  mutate(g1surban = case_when(
+    g1surban == 1 ~ "Inner City",
+    g1surban == 2 ~ "Suburban",
+    g1surban == 3 ~ "Rural",
+    g1surban == 4 ~ "Urban"))
+
+undersampled_data$g1surban = as.factor((undersampled_data$g1surban))
+
+undersampled_data <- undersampled_data %>%mutate(g1tgen = ifelse(g1tgen == 1, "male", "female"))
+undersampled_data$g1tgen = as.factor((undersampled_data$g1tgen))
+
+undersampled_data <- undersampled_data %>%
+  mutate(g1trace = case_when(
+    g1trace == 1 ~ "White",
+    g1trace == 2 ~ "Black",
+    g1trace == 3 ~ "Asian",
+    g1trace == 4 ~ "Hispanic",
+    g1trace == 5 ~ "NativeAm",
+    g1trace == 6 ~ "Other"))
+undersampled_data$g1trace = as.factor((undersampled_data$g1trace))
+
+undersampled_data <- undersampled_data %>%
+  mutate(g1thighdegree = case_when(
+    g1thighdegree == 1 ~ "Associates",
+    g1thighdegree == 2 ~ "Bachelors",
+    g1thighdegree == 3 ~ "Masters",
+    g1thighdegree == 4 ~ "Masters +",
+    g1thighdegree == 5 ~ "Specialist",
+    g1thighdegree == 6 ~ "Other"))
+
+undersampled_data$g1thighdegree = as.factor((undersampled_data$g1thighdegree))
+undersampled_data <- undersampled_data %>%
+  mutate(g1tcareer = case_when(
+    g1tcareer == 1 ~ "Not Appear",
+    g1tcareer== 2 ~ "Apprentice",
+    g1tcareer == 3 ~ "Probation",
+    g1tcareer == 4 ~ "Ladder level 1",
+    g1tcareer == 5 ~ "Ladder level 2",
+    g1tcareer == 6 ~ "Ladder level 3",
+    g1tcareer == 7 ~ "Pending"))
+
+undersampled_data$g1tcareer = as.factor((undersampled_data$g1tcareer))
+
+undersampled_data <- undersampled_data %>%mutate(g1freelunch = ifelse(g1freelunch == 1, "Free", "Non-Free"))
+undersampled_data$g1freelunch = as.factor((undersampled_data$g1freelunch))
+
+undersampled_data <- undersampled_data %>%mutate(g1promote = ifelse(g1promote == 1, "Recommended", "Not Recommended"))
+
+#undersampled_data <- undersampled_data %>%mutate(g1promote = ifelse(g1promote == 1, 1, 0))
+
+undersampled_data$g1promote = as.factor((undersampled_data$g1promote))
+```
+
+
+```{r , include=FALSE}
+library(caret)
+set.seed(123)
+train_indices <- createDataPartition(undersampled_data$g1promote, p = 0.85, list = FALSE)
+train_data <- undersampled_data[train_indices, ]
+test_data <- undersampled_data[-train_indices, ]
+```
+
+```{r , include=FALSE}
+set.seed(123)
+lg_model <- glm(g1promote ~gender+race+g1classtype+g1surban+g1tgen+g1trace+g1thighdegree+g1tcareer+g1freelunch+g1tmathss, data =train_data, family = "binomial")
+
+summary(lg_model)
+```
+
+
+
+```{r, include=FALSE}
+set.seed(123)
+stepwise_model_AIC <- step(lg_model, direction = "both", trace = 0, k = 2)
+stepwise_model_BIC = step(lg_model, direction = "both", trace = 0, k = log(nrow(train_data)))
+summary(stepwise_model_BIC)
+```
+
+
+```{r, include=FALSE}
+set.seed(123)
+predicted <- predict(stepwise_model_BIC, newdata = test_data, type = "response")
+predicted_classes <- ifelse(predicted > 0.54, "Recommended", "Not Recommended")  # Threshold at 0.5
+library(caret)
+conf_matrix <- confusionMatrix(factor(predicted_classes), factor(test_data$g1promote))
+print(conf_matrix)
+```
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE, fig.width=10, fig.height=2.5}
+p1 =ggplot(as.data.frame(conf_matrix$table), aes(x = Reference, y = Prediction, fill = Freq)) +
+  geom_tile(color = "black") +
+  geom_text(aes(label = Freq), vjust = 1) +
+  scale_fill_gradient(low = "#e6ab02", high = "#d95f02") +
+  labs(title = "Confusion Matrix",
+       x = "Reference",
+       y = "Prediction") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 0.8),
+        axis.text.y = element_text(angle = 0, vjust = 1)) +
+  theme_minimal()
+
+
+coefficients <- coef(stepwise_model_BIC)
+conf_intervals <- confint(stepwise_model_BIC)
+
+# Calculate odds ratios
+odds_ratios <- exp(coefficients)
+lower_ci <- exp(conf_intervals[, 1])
+upper_ci <- exp(conf_intervals[, 2])
+
+results <- data.frame(
+  Predictor = names(odds_ratios),
+  Odds_Ratio = odds_ratios,
+  Lower_CI = lower_ci,
+  Upper_CI = upper_ci
+)
+
+p2 = ggplot(results, aes(y = Predictor, x = Odds_Ratio)) +
+  geom_point() +
+  geom_errorbarh(aes(xmin = Lower_CI, xmax = Upper_CI), height = 0.2) +
+  geom_vline(xintercept = 1, linetype = "dashed", color = "red") +
+  labs(title = "Odds Ratios and 95% CI",
+       x = "Odds Ratio",
+       y = "Predictor") +
+  theme_minimal()
+
+plot_grid(p1,p2, labels =c("19","20"), ncol=2)
+```
+
+
+We see that the model does a good job of accurately predicting the reponse variable.
+The accuracy, sensitivity and specificity (0.84, 0.89, 0.8) scores are relatively high. 
+
+By definition of the model we see that $odds_{x_i=1}/odds_{x_i=0} = e^{\beta_i}$
+
+From plot 20, we can make the following conclusions:
+
+* White student and male students are less likely to be promoted (odds ratio less than 1)
+* Increase in math scores increase odds of being promoted
+* Being ineligible for the free lunch program increase odds being promoted
+
+
+# Acknowledgement {-}
+
+I discussed aspects of this project with Thommas Phan and Alan Phan
+ 
+# Reference {-}
+
+
+
+Schanzenbach, D. W. (2006). What Have Researchers Learned from Project STAR? Brookings Papers on Education Policy, 9, 205–228. http://www.jstor.org/stable/20067282
+
+Finn, S (2007) Project STAR and Beyond
+
+Imbens, G., & Rubin, D. (2015). Stratified Randomized Experiments. In Causal Inference for Statistics, Social, and Biomedical Sciences: An Introduction (pp. 187-218). Cambridge: Cambridge University Press. doi:10.1017/CBO9781139025751.010
+
+# Session info {-}
+
+
+```{r}
+sessionInfo()
+```
